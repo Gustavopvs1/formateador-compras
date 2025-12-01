@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procesador de Órdenes de Compra</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            margin-bottom: 20px;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .header-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+        
+        h1 {
+            color: #2d3748;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .upload-area {
+            border: 3px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f7fafc;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e6fffa;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .upload-text {
+            color: #2d3748;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        
+        .upload-hint {
+            color: #a0aec0;
+            font-size: 14px;
+        }
+        
+        .file-name {
+            margin-top: 15px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(72, 187, 120, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #e2e8f0;
+            color: #a0aec0;
+            cursor: not-allowed;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: flex;
+            align-items: start;
+            gap: 12px;
+        }
+        
+        .alert-error {
+            background: #fed7d7;
+            border: 1px solid #fc8181;
+            color: #742a2a;
+        }
+        
+        .alert-success {
+            background: #c6f6d5;
+            border: 1px solid #68d391;
+            color: #22543d;
+        }
+        
+        .alert-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .preview {
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .preview-header {
+            background: #f7fafc;
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        tr:hover {
+            background: #f7fafc;
+        }
+        
+        .instructions {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .instructions h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ol {
+            color: #4a5568;
+            line-height: 1.8;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <div class="header-icon">📊</div>
+                <h1>Procesador de Órdenes de Compra</h1>
+            </div>
+            
+            <p class="subtitle">
+                Sube tu archivo de orden de compra (formato antiguo o nuevo) 
+                y genera automáticamente el archivo procesado para distribución en formato Excel.
+            </p>
+
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📤</div>
+                <div class="upload-text">Click para subir o arrastra el archivo aquí</div>
+                <div class="upload-hint">Archivos Excel (.xls, .xlsx)</div>
+                <div class="file-name" id="fileName"></div>
+            </div>
+            <input type="file" id="fileInput" accept=".xls,.xlsx">
+
+            <button class="btn btn-primary" id="processBtn" disabled>
+                <span>📄</span>
+                <span>Procesar Archivo</span>
+            </button>
+
+            <div id="alertContainer"></div>
+            <div id="previewContainer"></div>
+        </div>
+
+        <div class="instructions">
+            <h2>📋 Instrucciones:</h2>
+            <ol>
+                <li>Sube el archivo Excel de orden de compra (.xls o .xlsx)</li>
+                <li>Haz clic en "Procesar Archivo" para convertirlo</li>
+                <li>Revisa la vista previa de los datos procesados</li>
+                <li>Descarga el archivo Excel generado</li>
+                <li>El archivo generado estará listo para usar en tus procesos</li>
+            </ol>
+        </div>
+    </div>
+
+<script>
+    let currentFile = null;
+    let processedData = [];
+
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const processBtn = document.getElementById('processBtn');
+    const alertContainer = document.getElementById('alertContainer');
+    const previewContainer = document.getElementById('previewContainer');
+
+    // Drag and drop events
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        if (!file.name.match(/\.(xls|xlsx)$/i)) {
+            showAlert('Por favor selecciona un archivo Excel (.xls o .xlsx)', 'error');
+            return;
+        }
+        currentFile = file;
+        fileName.textContent = `✓ ${file.name}`;
+        processBtn.disabled = false;
+        alertContainer.innerHTML = '';
+        previewContainer.innerHTML = '';
+    }
+
+    processBtn.addEventListener('click', processFile);
+
+    async function processFile() {
+        if (!currentFile) return;
+
+        processBtn.disabled = true;
+        processBtn.innerHTML = '<div class="spinner"></div><span>Procesando...</span>';
+        alertContainer.innerHTML = '';
+        previewContainer.innerHTML = '';
+
+        try {
+            const data = await readExcelFile(currentFile);
+            processedData = parseOrderData(data);
+            
+            if (processedData.length === 0) {
+                throw new Error('No se encontraron datos válidos en el archivo');
+            }
+
+            showAlert(`¡Procesamiento exitoso! Se procesaron ${processedData.length} registros`, 'success');
+            showPreview(processedData);
+            showDownloadButton();
+
+        } catch (error) {
+            showAlert(`Error al procesar el archivo: ${error.message}`, 'error');
+        } finally {
+            processBtn.disabled = false;
+            processBtn.innerHTML = '<span>📄</span><span>Procesar Archivo</span>';
+        }
+    }
+
+    function readExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+                    resolve(jsonData);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = () => reject(new Error('Error al leer el archivo'));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    // ===== Helpers =====
+    function normalizeText(value) {
+        return String(value || "")
+            .trim()
+            .toUpperCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036F]/g, ""); // quita acentos
+    }
+
+    function isEmptyCell(value) {
+        return value === undefined || value === null || String(value).trim() === "";
+    }
+
+    // (lo usaremos más adelante para mejorar detection de modelos)
+    function isModelCode(value) {
+        const s = String(value || "").trim().toUpperCase();
+        // permitir letras, números y guiones
+        if (!/^[A-Z0-9-]+$/.test(s)) return false;
+        if (s.length < 5 || s.length > 15) return false;
+        if (!/[A-Z]/.test(s) || !/[0-9]/.test(s)) return false;
+        return true;
+    }
+
+    // Detectar formato nuevo por encabezados Ean / Precio / Sku / Descripción
+    function detectNewFormat(data) {
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i] || [];
+            const normRow = row.map(normalizeText);
+
+            const hasEan = normRow.includes("EAN");
+            const hasSku = normRow.includes("SKU");
+            const hasDesc = normRow.includes("DESCRIPCION") || normRow.includes("DESCRIPCIÓN");
+            const hasPrecio = normRow.includes("PRECIO");
+
+            if (hasEan && hasSku && hasDesc && hasPrecio) {
+                return true;
+            }
+        }
+        return false;
+    }
+    x
+
+    // ===== Router de formato =====
+    function parseOrderData(data) {
+        const isNew = detectNewFormat(data);
+        if (isNew) {
+            return parseNewFormat(data);   // Liverpool formato nuevo
+        } else {
+            return parseOldFormat(data);   // Suburbia / formato viejo
+        }
+    }
+
+    // ===== Formato NUEVO (Liverpool) =====
+    function parseNewFormat(data) {
+        const result = [];
+        let currentEan = null;
+        let currentProducto = null;
+        let inDistribucion = false;
+        
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+
+            if (!row || row.length === 0) continue;
+            
+            // Buscar EAN en la columna "Ean"
+            if (row[0] === 'Ean' && i + 1 < data.length) {
+                currentEan = String(data[i + 1][0]).trim();
+                inDistribucion = false;
+                continue;
+            }
+            
+            // Buscar código de producto (Descripción / Estilo u otras columnas)
+            for (let j = 0; j < row.length; j++) {
+                const cell = String(row[j]).trim();
+                if (isModelCode(cell)) {
+                    currentProducto = cell;
+                    break;
+                }
+            }
+            
+            // Detectar inicio de sección de distribución
+            if (String(row[0]).includes('Distribución') || row[0] === 'Tienda') {
+                inDistribucion = true;
+                continue;
+            }
+            
+            // Procesar filas de distribución
+            if (inDistribucion && currentEan && currentProducto) {
+                let j = 0;
+                while (j < row.length - 1) {
+                    let cantidad = null;
+                    let tienda = null;
+                    
+                    if (row[j] !== '' && !isNaN(parseInt(row[j]))) {
+                        cantidad = parseInt(row[j]);
+                        j++;
+                    } else {
+                        j++;
+                        continue;
+                    }
+                    
+                    for (let k = j; k < Math.min(j + 3, row.length); k++) {
+                        const cell = String(row[k]).trim();
+                        if (cell && !isNaN(parseInt(cell)) && cell.length <= 5) {
+                            tienda = cell;
+                            j = k + 1;
+                            break;
+                        }
+                    }
+                    
+                    if (cantidad && tienda && cantidad > 0) {
+                        result.push({
+                            Tienda: tienda,
+                            Cantidad: cantidad,
+                            Producto: currentProducto,
+                            Sku: currentEan
+                        });
+                    }
+                }
+            }
+            
+            if (row[0] === 'Ean' || row[0] === 'Precio') {
+                inDistribucion = false;
+            }
+        }
+        
+        return result;
+    }
+
+    // ===== Formato VIEJO (Suburbia) =====
+    function parseOldFormat(data) {
+        const result = [];
+        const nRows = data.length;
+        if (!nRows) return result;
+
+        // Regex anterior (por si acaso) pero usaremos isModelCode pronto
+        const modelRegex = /^(MUC|MUCM|MMP|MMPS)[A-Z0-9]+$/i;
+
+        for (let i = 0; i < nRows; i++) {
+            const row = data[i] || [];
+            if (!row.length) continue;
+
+            // ¿Hay algún código de modelo en esta fila?
+            let foundModel = null;
+            for (let c = 0; c < row.length; c++) {
+                const v = String(row[c] || "").trim();
+                if (modelRegex.test(v) || isModelCode(v)) {
+                    foundModel = v;
+                    break;
+                }
+            }
+
+            if (!foundModel) continue;
+            const currentModel = foundModel;
+
+            // ---- SKU / EAN en la misma fila ----
+            let currentSku = null;
+            let eanCandidate = null;
+            const numericCodes = [];
+
+            for (let c = 0; c < row.length; c++) {
+                const v = String(row[c] || "").trim();
+                if (/^\d+$/.test(v)) {
+                    numericCodes.push(v);
+                }
+            }
+
+            // SKU: 9–11 dígitos, EAN: 12–14
+            for (const code of numericCodes) {
+                if (code.length >= 9 && code.length <= 11 && !currentSku) {
+                    currentSku = code;
+                } else if (code.length >= 12 && code.length <= 14 && !eanCandidate) {
+                    eanCandidate = code;
+                }
+            }
+            if (!currentSku && eanCandidate) {
+                currentSku = eanCandidate;
+            }
+
+            // ---- Filas de distribución debajo de este producto ----
+            for (let r = i + 1; r < nRows; r++) {
+                const drow = data[r] || [];
+                if (!drow.length) continue;
+
+                // ¿Nuevo producto?
+                let hasNewModel = false;
+                for (let c = 0; c < drow.length; c++) {
+                    const v = drow[c];
+                    if (modelRegex.test(String(v || "").trim()) || isModelCode(v)) {
+                        hasNewModel = true;
+                        break;
+                    }
+                }
+                if (hasNewModel) {
+                    i = r - 1; // que el for principal procese este nuevo
+                    break;
+                }
+
+                const filtered = drow.filter(v => !isEmptyCell(v));
+                if (filtered.length < 2) continue;
+
+                const hasTienda = filtered.some(v => normalizeText(v).includes("TIENDA"));
+                const hasCantidad = filtered.some(v => normalizeText(v).includes("CANTIDAD"));
+                if (hasTienda && hasCantidad) continue;
+
+                // Emular array_chunk([TIENDA,CANTIDAD,TIENDA,CANTIDAD],2)
+                for (let k = 0; k < filtered.length - 1; k += 2) {
+                    const tiendaVal = filtered[k];
+                    const cantVal = filtered[k + 1];
+
+                    const tiendaStr = String(tiendaVal || "").trim();
+                    const cantNum = parseInt(cantVal, 10);
+
+                    if (!tiendaStr || isNaN(cantNum) || cantNum <= 0) continue;
+                    if (!/^\d+$/.test(tiendaStr)) continue;
+                    if (tiendaStr.length > 4) continue;
+
+                    result.push({
+                        Tienda: tiendaStr,
+                        Cantidad: cantNum,
+                        Producto: currentModel,
+                        Sku: currentSku ? String(currentSku) : ""
+                    });
+                }
+            }
+        }
+
+        return result;
+    }
+
+    // ===== UI: alertas, preview y descarga =====
+    function showAlert(message, type) {
+        const icon = type === 'error' ? '⚠️' : '✅';
+        alertContainer.innerHTML = `
+            <div class="alert alert-${type}">
+                <div class="alert-icon">${icon}</div>
+                <div>${message}</div>
+            </div>
+        `;
+    }
+
+    function showPreview(data) {
+        const preview = data.slice(0, 10);
+        previewContainer.innerHTML = `
+            <div class="preview">
+                <div class="preview-header">Vista previa (primeros 10 registros de ${data.length})</div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tienda</th>
+                                <th>Cantidad</th>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${preview.map(row => `
+                                <tr>
+                                    <td>${row.Tienda}</td>
+                                    <td>${row.Cantidad}</td>
+                                    <td>${row.Producto}</td>
+                                    <td>${row.Sku}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    function showDownloadButton() {
+        const btnContainer = document.createElement('div');
+        btnContainer.style.display = 'flex';
+        btnContainer.style.flexDirection = 'column';
+        btnContainer.style.gap = '10px';
+        btnContainer.style.marginTop = '10px';
+
+        // Botón Excel (igual que antes)
+        const btnExcel = document.createElement('button');
+        btnExcel.className = 'btn btn-success';
+        btnExcel.innerHTML = '<span>⬇️</span><span>Descargar Archivo Excel</span>';
+        btnExcel.onclick = downloadExcel;
+
+        // Botón PDF (nuevo)
+        const btnPDF = document.createElement('button');
+        btnPDF.className = 'btn btn-primary';
+        btnPDF.innerHTML = '<span>🧾</span><span>Descargar como PDF</span>';
+        btnPDF.onclick = downloadPDF;
+
+        btnContainer.appendChild(btnExcel);
+        btnContainer.appendChild(btnPDF);
+
+        previewContainer.appendChild(btnContainer);
+    }
+
+    function downloadExcel() {
+        const ws = XLSX.utils.json_to_sheet(processedData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Ordenes');
+        
+        const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
+        const filename = `orden_procesada_${timestamp}.xlsx`;
+        XLSX.writeFile(wb, filename);
+    }
+    function downloadPDF() {
+    if (!processedData || processedData.length === 0) {
+        showAlert('No hay datos para exportar a PDF', 'error');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'pt'); // portrait, points
+
+    // Título
+    doc.setFontSize(14);
+    doc.text('Orden procesada - Distribución por tienda', 40, 40);
+
+    // Definir columnas y filas para autoTable
+    const head = [['Tienda', 'Cantidad', 'Producto', 'SKU']];
+    const body = processedData.map(row => [
+        String(row.Tienda ?? ''),
+        String(row.Cantidad ?? ''),
+        String(row.Producto ?? ''),
+        String(row.Sku ?? '')
+    ]);
+
+    doc.autoTable({
+        startY: 60,
+        head,
+        body,
+        styles: {
+            fontSize: 8,
+            cellPadding: 3
+        },
+        headStyles: {
+            fillColor: [102, 126, 234], // mismo tono morado/azul
+            textColor: 255
+        }
+    });
+
+    const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    const filename = `orden_procesada_${timestamp}.pdf`;
+    doc.save(filename);
+}
+
+</script>
+</body>
+</html>
