@@ -204,8 +204,39 @@
         }
         
         .table-container {
+            max-height: 350px;      /* altura visible de la vista previa */
+            overflow-y: auto;
             overflow-x: auto;
         }
+
+        /* Scrollbar moderno y discreto */
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+
+        /* Encabezado fijo mientras haces scroll */
+        .table-container table thead th {
+            position: sticky;
+            top: 0;
+            background: #f7fafc;
+            z-index: 2;
+        }
+
         
         table {
             width: 100%;
@@ -300,6 +331,7 @@
 <script>
     let currentFile = null;
     let processedData = [];
+    let originalFileName = '';
 
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
@@ -339,6 +371,10 @@
             return;
         }
         currentFile = file;
+
+        // 👇 guardamos el nombre sin la extensión
+        originalFileName = file.name.replace(/\.[^.]+$/, '');
+
         fileName.textContent = `✓ ${file.name}`;
         processBtn.disabled = false;
         alertContainer.innerHTML = '';
@@ -434,7 +470,7 @@
         }
         return false;
     }
-    x
+
 
     // ===== Router de formato =====
     function parseOrderData(data) {
@@ -635,36 +671,37 @@
         `;
     }
 
-    function showPreview(data) {
-        const preview = data.slice(0, 10);
-        previewContainer.innerHTML = `
-            <div class="preview">
-                <div class="preview-header">Vista previa (primeros 10 registros de ${data.length})</div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Tienda</th>
-                                <th>Cantidad</th>
-                                <th>Producto</th>
-                                <th>SKU</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${preview.map(row => `
-                                <tr>
-                                    <td>${row.Tienda}</td>
-                                    <td>${row.Cantidad}</td>
-                                    <td>${row.Producto}</td>
-                                    <td>${row.Sku}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
+   function showPreview(data) {
+    previewContainer.innerHTML = `
+        <div class="preview">
+            <div class="preview-header">
+                Vista previa (${data.length} registros)
             </div>
-        `;
-    }
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tienda</th>
+                            <th>Cantidad</th>
+                            <th>Producto</th>
+                            <th>SKU</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(row => `
+                            <tr>
+                                <td>${row.Tienda}</td>
+                                <td>${row.Cantidad}</td>
+                                <td>${row.Producto}</td>
+                                <td>${row.Sku}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
 
     function showDownloadButton() {
         const btnContainer = document.createElement('div');
@@ -695,25 +732,25 @@
         const ws = XLSX.utils.json_to_sheet(processedData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Ordenes');
-        
-        const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
-        const filename = `orden_procesada_${timestamp}.xlsx`;
+
+        const base = originalFileName || 'orden_procesada';
+        const filename = `${base} - formateado.xlsx`;   // 👈 aquí va el nombre original + " - formateado"
+
         XLSX.writeFile(wb, filename);
     }
-    function downloadPDF() {
+
+function downloadPDF() {
     if (!processedData || processedData.length === 0) {
         showAlert('No hay datos para exportar a PDF', 'error');
         return;
     }
 
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'pt'); // portrait, points
+    const doc = new jsPDF('p', 'pt');
 
-    // Título
     doc.setFontSize(14);
     doc.text('Orden procesada - Distribución por tienda', 40, 40);
 
-    // Definir columnas y filas para autoTable
     const head = [['Tienda', 'Cantidad', 'Producto', 'SKU']];
     const body = processedData.map(row => [
         String(row.Tienda ?? ''),
@@ -726,18 +763,13 @@
         startY: 60,
         head,
         body,
-        styles: {
-            fontSize: 8,
-            cellPadding: 3
-        },
-        headStyles: {
-            fillColor: [102, 126, 234], // mismo tono morado/azul
-            textColor: 255
-        }
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [102, 126, 234], textColor: 255 }
     });
 
-    const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
-    const filename = `orden_procesada_${timestamp}.pdf`;
+    const base = originalFileName || 'orden_procesada';
+    const filename = `${base} - formateado.pdf`;   // 👈 igual que en Excel, pero PDF
+
     doc.save(filename);
 }
 
