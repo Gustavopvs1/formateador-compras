@@ -202,6 +202,47 @@
             font-weight: 600;
             color: #2d3748;
         }
+
+        .column-controls {
+        margin-top: 20px;
+        margin-bottom: 10px;
+        padding: 10px 12px;
+        background: #f7fafc;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .column-controls-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 8px;
+    }
+
+    .column-controls-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .column-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: white;
+        border: 1px solid #cbd5e0;
+        font-size: 13px;
+        color: #4a5568;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .column-pill input {
+        margin: 0;
+    }
+
         
         .table-container {
             max-height: 350px;      /* altura visible de la vista previa */
@@ -332,6 +373,8 @@
     let currentFile = null;
     let processedData = [];
     let originalFileName = '';
+    let selectedColumns = ['Tienda', 'Cantidad', 'Producto', 'Sku']; // columnas por defecto
+
 
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
@@ -399,9 +442,9 @@
                 throw new Error('No se encontraron datos válidos en el archivo');
             }
 
-            showAlert(`¡Procesamiento exitoso! Se procesaron ${processedData.length} registros`, 'success');
-            showPreview(processedData);
-            showDownloadButton();
+        showAlert(`¡Procesamiento exitoso! Se procesaron ${processedData.length} registros`, 'success');
+        showPreview(processedData);
+
 
         } catch (error) {
             showAlert(`Error al procesar el archivo: ${error.message}`, 'error');
@@ -445,13 +488,16 @@
 
     // (lo usaremos más adelante para mejorar detection de modelos)
     function isModelCode(value) {
-        const s = String(value || "").trim().toUpperCase();
-        // permitir letras, números y guiones
-        if (!/^[A-Z0-9-]+$/.test(s)) return false;
-        if (s.length < 5 || s.length > 15) return false;
-        if (!/[A-Z]/.test(s) || !/[0-9]/.test(s)) return false;
-        return true;
-    }
+            const s = String(value || "").trim().toUpperCase();
+            // permitir letras, números y guiones
+            if (!/^[A-Z0-9-]+$/.test(s)) return false;
+            // longitud razonable para códigos de producto
+            if (s.length < 3 || s.length > 20) return false;
+            // al menos una letra
+            if (!/[A-Z]/.test(s)) return false;
+            // YA NO exigimos números
+            return true;
+        }
 
     // Detectar formato nuevo por encabezados Ean / Precio / Sku / Descripción
     function detectNewFormat(data) {
@@ -484,24 +530,53 @@
 
     // ===== Formato NUEVO (Liverpool) =====
     function parseNewFormat(data) {
-        const result = [];
-        let currentEan = null;
-        let currentProducto = null;
-        let inDistribucion = false;
-        
-        for (let i = 0; i < data.length; i++) {
-            const row = data[i];
+    const result = [];
+    let currentEan = null;
+    let currentProducto = null;
+    let inDistribucion = false;
+    let currentMeta = {};  // columnas de cabecera (Ean, Precio, Color, etc.)
 
-            if (!row || row.length === 0) continue;
-            
-            // Buscar EAN en la columna "Ean"
-            if (row[0] === 'Ean' && i + 1 < data.length) {
-                currentEan = String(data[i + 1][0]).trim();
-                inDistribucion = false;
-                continue;
+    for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        if (!row || row.length === 0) continue;
+
+        // 1) Fila de encabezados "Ean  Precio  Color  Talla  ..."
+        if (String(row[0]).trim() === 'Ean' && i + 1 < data.length) {
+            const headerRow = row.map(v => String(v || '').trim());
+            const valueRow = (data[i + 1] || []).map(v => v);
+
+            currentMeta = {};
+            for (let c = 0; c < headerRow.length; c++) {
+                const colName = headerRow[c];
+                if (!colName) continue;
+                currentMeta[colName] = valueRow[c];
             }
-            
-            // Buscar código de producto (Descripción / Estilo u otras columnas)
+
+            // Ean principal
+            currentEan = String(currentMeta['Ean'] || '').trim();
+
+            // Producto: lo intentamos tomar del Estilo
+            const estilo = currentMeta['Estilo'] || currentMeta['ESTILO'];
+            if (estilo && isModelCode(estilo)) {
+                currentProducto = String(estilo).trim();
+            } else {
+                currentProducto = null; // lo podremos buscar en filas intermedias
+            }
+
+            inDistribucion = false;
+            continue;
+        }
+
+        const firstCell = String(row[0] || '').trim();
+
+        // 2) Detectar inicio de sección de distribución
+        if (firstCell.includes('Distribución') || firstCell === 'Tienda') {
+            inDistribucion = true;
+            continue;
+        }
+
+        // 3) Buscar código de producto SOLO fuera de la distribución
+        if (!inDistribucion && !currentProducto) {
             for (let j = 0; j < row.length; j++) {
                 const cell = String(row[j]).trim();
                 if (isModelCode(cell)) {
@@ -509,67 +584,106 @@
                     break;
                 }
             }
-            
-            // Detectar inicio de sección de distribución
-            if (String(row[0]).includes('Distribución') || row[0] === 'Tienda') {
-                inDistribucion = true;
-                continue;
-            }
-            
-            // Procesar filas de distribución
-            if (inDistribucion && currentEan && currentProducto) {
-                let j = 0;
-                while (j < row.length - 1) {
-                    let cantidad = null;
-                    let tienda = null;
-                    
-                    if (row[j] !== '' && !isNaN(parseInt(row[j]))) {
-                        cantidad = parseInt(row[j]);
-                        j++;
-                    } else {
-                        j++;
-                        continue;
-                    }
-                    
-                    for (let k = j; k < Math.min(j + 3, row.length); k++) {
-                        const cell = String(row[k]).trim();
-                        if (cell && !isNaN(parseInt(cell)) && cell.length <= 5) {
-                            tienda = cell;
-                            j = k + 1;
-                            break;
-                        }
-                    }
-                    
-                    if (cantidad && tienda && cantidad > 0) {
-                        result.push({
-                            Tienda: tienda,
-                            Cantidad: cantidad,
-                            Producto: currentProducto,
-                            Sku: currentEan
-                        });
+        }
+
+        // 4) Procesar filas de distribución
+        if (inDistribucion && currentEan && currentProducto) {
+            let j = 0;
+            while (j < row.length - 1) {
+                let cantidad = null;
+                let tienda = null;
+
+                // cantidad
+                if (row[j] !== '' && !isNaN(parseInt(row[j]))) {
+                    cantidad = parseInt(row[j]);
+                    j++;
+                } else {
+                    j++;
+                    continue;
+                }
+
+                // tienda (buscamos un número corto en las siguientes celdas)
+                for (let k = j; k < Math.min(j + 3, row.length); k++) {
+                    const cell = String(row[k]).trim();
+                    if (cell && !isNaN(parseInt(cell)) && cell.length <= 5) {
+                        tienda = cell;
+                        j = k + 1;
+                        break;
                     }
                 }
-            }
-            
-            if (row[0] === 'Ean' || row[0] === 'Precio') {
-                inDistribucion = false;
+
+                if (cantidad && tienda && cantidad > 0) {
+                    const rowObj = {
+                        Tienda: tienda,
+                        Cantidad: cantidad,
+                        Producto: currentProducto, // 👈 ya no será "Tienda"
+                        Sku: currentMeta['Sku'] || currentMeta['SKU'] || currentEan
+                    };
+
+                    // Agregar columnas extra (Ean, Precio, Color, Talla, Descripción, Estilo, etc.)
+                    Object.keys(currentMeta).forEach(colName => {
+                        if (!(colName in rowObj)) {
+                            rowObj[colName] = currentMeta[colName];
+                        }
+                    });
+
+                    result.push(rowObj);
+                }
             }
         }
-        
-        return result;
+
+        // 5) Cuando empieza un nuevo bloque de producto
+        if (firstCell === 'Ean' || firstCell === 'Precio') {
+            inDistribucion = false;
+        }
     }
 
-    // ===== Formato VIEJO (Suburbia) =====
+    return result;
+}
+
     function parseOldFormat(data) {
         const result = [];
         const nRows = data.length;
         if (!nRows) return result;
 
-        // Regex anterior (por si acaso) pero usaremos isModelCode pronto
+        // Detectar fila de encabezados de producto (MODELO, CÓDIGO EAN, SKU, DESCRIPCIÓN, etc.)
+        let headerRowIndex = -1;
+        const headerNamesByIndex = {};
+
+        for (let r = 0; r < nRows; r++) {
+            const row = data[r] || [];
+            if (!row.length) continue;
+
+            const norm = row.map(normalizeText);
+            const hasModelo = norm.some(v => v.includes("MODELO"));
+            const hasEan = norm.some(v =>
+                v.includes("CODIGO EAN") ||
+                v.includes("CÓDIGO EAN") ||
+                (v.includes("CODIGO") && v.includes("EAN"))
+            );
+            const hasSku = norm.some(v => v.includes("SKU"));
+            const hasDescripcion = norm.some(v =>
+                v.includes("DESCRIPCION") ||
+                v.includes("DESCRIPCIÓN")
+            );
+
+            if (hasModelo && (hasEan || hasSku || hasDescripcion)) {
+                headerRowIndex = r;
+                for (let c = 0; c < row.length; c++) {
+                    const rawHeader = String(row[c] || "").trim();
+                    if (!rawHeader) continue;
+                    let cleanName = rawHeader.replace(/:$/, "").trim(); // quitar ":" final
+                    headerNamesByIndex[c] = cleanName;
+                }
+                break;
+            }
+        }
+
+        // Regex anterior (por si acaso) pero en realidad usamos más isModelCode
         const modelRegex = /^(MUC|MUCM|MMP|MMPS)[A-Z0-9]+$/i;
 
         for (let i = 0; i < nRows; i++) {
-            const row = data[i] || [];
+            const row = (data[i] || []);
             if (!row.length) continue;
 
             // ¿Hay algún código de modelo en esta fila?
@@ -584,6 +698,18 @@
 
             if (!foundModel) continue;
             const currentModel = foundModel;
+
+            // Metadatos de producto tomando la fila actual vs encabezados
+            let productMeta = {};
+            if (headerRowIndex >= 0) {
+                for (let c = 0; c < row.length; c++) {
+                    const headerName = headerNamesByIndex[c];
+                    if (!headerName) continue;
+                    const cellVal = row[c];
+                    if (isEmptyCell(cellVal)) continue;
+                    productMeta[headerName] = cellVal;
+                }
+            }
 
             // ---- SKU / EAN en la misma fila ----
             let currentSku = null;
@@ -607,6 +733,16 @@
             }
             if (!currentSku && eanCandidate) {
                 currentSku = eanCandidate;
+            }
+
+            // Rellenar metadatos con SKU/EAN si no venían en columnas
+            if (currentSku && !("SKU" in productMeta)) {
+                productMeta["SKU"] = currentSku;
+            }
+            if (eanCandidate &&
+                !("CÓDIGO EAN" in productMeta) &&
+                !("CODIGO EAN" in productMeta)) {
+                productMeta["CÓDIGO EAN"] = eanCandidate;
             }
 
             // ---- Filas de distribución debajo de este producto ----
@@ -647,12 +783,21 @@
                     if (!/^\d+$/.test(tiendaStr)) continue;
                     if (tiendaStr.length > 4) continue;
 
-                    result.push({
+                    const rowObj = {
                         Tienda: tiendaStr,
                         Cantidad: cantNum,
                         Producto: currentModel,
                         Sku: currentSku ? String(currentSku) : ""
+                    };
+
+                    // Añadir columnas extra de producto si existen (MODELO, CÓDIGO EAN, DESCRIPCIÓN, COLOR, TALLA, etc.)
+                    Object.keys(productMeta).forEach(colName => {
+                        if (!(colName in rowObj)) {
+                            rowObj[colName] = productMeta[colName];
+                        }
                     });
+
+                    result.push(rowObj);
                 }
             }
         }
@@ -660,19 +805,57 @@
         return result;
     }
 
-    // ===== UI: alertas, preview y descarga =====
-    function showAlert(message, type) {
-        const icon = type === 'error' ? '⚠️' : '✅';
-        alertContainer.innerHTML = `
-            <div class="alert alert-${type}">
-                <div class="alert-icon">${icon}</div>
-                <div>${message}</div>
-            </div>
-        `;
+
+        // ===== UI: alertas, preview y descarga =====
+        function showAlert(message, type) {
+            const icon = type === 'error' ? '⚠️' : '✅';
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    <div class="alert-icon">${icon}</div>
+                    <div>${message}</div>
+                </div>
+            `;
+        }
+
+    function showPreview(data) {
+    // Detectar todas las columnas disponibles en processedData
+    const colSet = new Set();
+    data.forEach(row => {
+        Object.keys(row).forEach(k => colSet.add(k));
+    });
+    const allColumns = Array.from(colSet);
+
+    // Mantener selectedColumns solo con columnas existentes
+    selectedColumns = (selectedColumns || []).filter(c => allColumns.includes(c));
+
+    // Si se vacía (p.ej. en el futuro agregas otras columnas), tomamos un default
+    if (selectedColumns.length === 0) {
+        const preferred = ['Tienda', 'Cantidad', 'Producto', 'Sku'];
+        preferred.forEach(c => {
+            if (allColumns.includes(c)) selectedColumns.push(c);
+        });
+        // Si ni siquiera hay las preferidas, mostramos todas
+        if (selectedColumns.length === 0) {
+            selectedColumns = allColumns.slice();
+        }
     }
 
-   function showPreview(data) {
-    previewContainer.innerHTML = `
+    const controlsHtml = `
+        <div class="column-controls">
+            <div class="column-controls-title">Columnas a mostrar</div>
+            <div class="column-controls-list">
+                ${allColumns.map(col => `
+                    <label class="column-pill">
+                        <input type="checkbox" class="column-toggle" data-col="${col}"
+                            ${selectedColumns.includes(col) ? 'checked' : ''}>
+                        <span>${col}</span>
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    const tableHtml = `
         <div class="preview">
             <div class="preview-header">
                 Vista previa (${data.length} registros)
@@ -681,19 +864,13 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Tienda</th>
-                            <th>Cantidad</th>
-                            <th>Producto</th>
-                            <th>SKU</th>
+                            ${selectedColumns.map(col => `<th>${col}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
                         ${data.map(row => `
                             <tr>
-                                <td>${row.Tienda}</td>
-                                <td>${row.Cantidad}</td>
-                                <td>${row.Producto}</td>
-                                <td>${row.Sku}</td>
+                                ${selectedColumns.map(col => `<td>${row[col] ?? ''}</td>`).join('')}
                             </tr>
                         `).join('')}
                     </tbody>
@@ -701,7 +878,36 @@
             </div>
         </div>
     `;
+
+    // Pintamos controles + tabla
+    previewContainer.innerHTML = controlsHtml + tableHtml;
+
+    // Añadir listeners a los checkboxes
+    const toggles = previewContainer.querySelectorAll('.column-toggle');
+    toggles.forEach(input => {
+        input.addEventListener('change', (e) => {
+            const col = e.target.getAttribute('data-col');
+            if (e.target.checked) {
+                if (!selectedColumns.includes(col)) {
+                    selectedColumns.push(col);
+                }
+            } else {
+                // No dejar al usuario sin ninguna columna
+                if (selectedColumns.length === 1) {
+                    e.target.checked = true;
+                    return;
+                }
+                selectedColumns = selectedColumns.filter(c => c !== col);
+            }
+            // Re-render de la vista previa con las nuevas columnas
+            showPreview(processedData);
+        });
+    });
+
+    // Volvemos a añadir los botones de descarga debajo
+    showDownloadButton();
 }
+
 
     function showDownloadButton() {
         const btnContainer = document.createElement('div');
@@ -729,15 +935,25 @@
     }
 
     function downloadExcel() {
-        const ws = XLSX.utils.json_to_sheet(processedData);
+        // Construimos un arreglo solo con las columnas seleccionadas
+        const dataToExport = processedData.map(row => {
+            const obj = {};
+            selectedColumns.forEach(col => {
+                obj[col] = row[col];
+            });
+            return obj;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Ordenes');
 
         const base = originalFileName || 'orden_procesada';
-        const filename = `${base} - formateado.xlsx`;   // 👈 aquí va el nombre original + " - formateado"
+        const filename = `${base} - formateado.xlsx`;
 
         XLSX.writeFile(wb, filename);
     }
+
 
 function downloadPDF() {
     if (!processedData || processedData.length === 0) {
@@ -751,13 +967,10 @@ function downloadPDF() {
     doc.setFontSize(14);
     doc.text('Orden procesada - Distribución por tienda', 40, 40);
 
-    const head = [['Tienda', 'Cantidad', 'Producto', 'SKU']];
-    const body = processedData.map(row => [
-        String(row.Tienda ?? ''),
-        String(row.Cantidad ?? ''),
-        String(row.Producto ?? ''),
-        String(row.Sku ?? '')
-    ]);
+    const head = [selectedColumns];
+    const body = processedData.map(row =>
+        selectedColumns.map(col => String(row[col] ?? ''))
+    );
 
     doc.autoTable({
         startY: 60,
@@ -768,10 +981,12 @@ function downloadPDF() {
     });
 
     const base = originalFileName || 'orden_procesada';
-    const filename = `${base} - formateado.pdf`;   // 👈 igual que en Excel, pero PDF
+    const filename = `${base} - formateado.pdf`;
 
     doc.save(filename);
 }
+
+
 
 </script>
 </body>
