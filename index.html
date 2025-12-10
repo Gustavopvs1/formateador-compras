@@ -16,16 +16,17 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #ff8282 0%, #d87777 100%);
             min-height: 100vh;
             padding: 20px;
         }
         
         .container {
-            max-width: 900px;
+            max-width: 1400px;
             margin: 0 auto;
+            width: 100%;
         }
-        
+   
         .card {
             background: white;
             border-radius: 12px;
@@ -75,19 +76,19 @@
         }
         
         .upload-area:hover {
-            border-color: #667eea;
+            border-color: #4e0000;
             background: #edf2f7;
         }
         
         .upload-area.dragover {
-            border-color: #667eea;
+            border-color: #840000;
             background: #e6fffa;
         }
         
         .upload-icon {
             font-size: 48px;
             margin-bottom: 15px;
-            color: #667eea;
+            color: #ae0000;
         }
         
         .upload-text {
@@ -124,7 +125,7 @@
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #8b0000 0%, #c60000 100%);
             color: white;
         }
         
@@ -148,6 +149,25 @@
             color: #a0aec0;
             cursor: not-allowed;
         }
+
+        .actions-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .actions-row .btn {
+            width: auto;
+            margin-top: 0;
+        }
+
+        .download-buttons {
+            display: none;
+            gap: 10px;
+        }
+
         
         .spinner {
             width: 20px;
@@ -245,12 +265,11 @@
 
         
         .table-container {
-            max-height: 350px;      /* altura visible de la vista previa */
+            max-height: 350px;
             overflow-y: auto;
             overflow-x: auto;
         }
 
-        /* Scrollbar moderno y discreto */
         .table-container::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -270,7 +289,6 @@
             background: #a0aec0;
         }
 
-        /* Encabezado fijo mientras haces scroll */
         .table-container table thead th {
             position: sticky;
             top: 0;
@@ -325,47 +343,126 @@
         input[type="file"] {
             display: none;
         }
+
+        .two-columns {
+            display: flex;
+            gap: 20px;
+        }
+
+        .left-panel { flex: 3; }
+        .right-panel { flex: 1.2; }
+
+        .left-panel, .right-panel {
+            min-width: 0;
+        }
+
+        .instructions {
+            padding: 20px !important;
+            font-size: 14px;
+        }
+        .instructions h2 {
+            font-size: 18px;
+        }
+        .instructions ol {
+            padding-left: 18px;
+        }
+
+        .preview-summary {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 13px;
+    color: #4a5568;
+}
+
+.preview-summary span {
+    background: #edf2f7;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+
+.preview-search {
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+.preview-search input {
+    width: 100%;
+    max-width: 280px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid #cbd5e0;
+    font-size: 13px;
+}
+
+.preview-search input:focus {
+    outline: none;
+    border-color: #8b0000; /* rojo que ya usas */
+    box-shadow: 0 0 0 2px rgba(139, 0, 0, 0.15);
+}
+
+/* Layout responsive para pantallas pequeñas */
+@media (max-width: 900px) {
+    .two-columns {
+        flex-direction: column;
+    }
+    .right-panel {
+        margin-top: 20px;
+    }
+}
+
+
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <div class="header">
-                <div class="header-icon">📊</div>
-                <h1>Procesador de Órdenes de Compra</h1>
+    <div class="container two-columns">
+        <div class="left-panel">
+            <div class="card">
+                <div class="header">
+                    <div class="header-icon">📊</div>
+                    <h1>Procesador de Órdenes de Compra</h1>
+                </div>
+                
+                <p class="subtitle">
+                    Sube tu archivo de orden de compra (formato antiguo o nuevo) 
+                    y genera automáticamente el archivo procesado para distribución en formato Excel.
+                </p>
+
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">📤</div>
+                    <div class="upload-text">Click para subir o arrastra el archivo aquí</div>
+                    <div class="upload-hint">Archivos Excel (.xls, .xlsx)</div>
+                    <div class="file-name" id="fileName"></div>
+                </div>
+                    <input type="file" id="fileInput" accept=".xls,xlsx">
+
+                    <div class="actions-row">
+                        <button class="btn btn-primary" id="processBtn" disabled>
+                            <span>📄</span>
+                            <span>Procesar Archivo</span>
+                        </button>
+
+                        <div id="downloadButtons" class="download-buttons"></div>
+                    </div>
+
+                    <div id="alertContainer"></div>
+                    <div id="previewContainer"></div>
+
             </div>
-            
-            <p class="subtitle">
-                Sube tu archivo de orden de compra (formato antiguo o nuevo) 
-                y genera automáticamente el archivo procesado para distribución en formato Excel.
-            </p>
-
-            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
-                <div class="upload-icon">📤</div>
-                <div class="upload-text">Click para subir o arrastra el archivo aquí</div>
-                <div class="upload-hint">Archivos Excel (.xls, .xlsx)</div>
-                <div class="file-name" id="fileName"></div>
-            </div>
-            <input type="file" id="fileInput" accept=".xls,.xlsx">
-
-            <button class="btn btn-primary" id="processBtn" disabled>
-                <span>📄</span>
-                <span>Procesar Archivo</span>
-            </button>
-
-            <div id="alertContainer"></div>
-            <div id="previewContainer"></div>
         </div>
 
-        <div class="instructions">
-            <h2>📋 Instrucciones:</h2>
-            <ol>
-                <li>Sube el archivo Excel de orden de compra (.xls o .xlsx)</li>
-                <li>Haz clic en "Procesar Archivo" para convertirlo</li>
-                <li>Revisa la vista previa de los datos procesados</li>
-                <li>Descarga el archivo Excel generado</li>
-                <li>El archivo generado estará listo para usar en tus procesos</li>
-            </ol>
+        <div class="right-panel">
+            <div class="instructions">
+                <h2>📋 Instrucciones:</h2>
+                <ol>
+                    <li>Sube el archivo Excel de orden de compra (.xls o .xlsx)</li>
+                    <li>Haz clic en "Procesar Archivo" para convertirlo</li>
+                    <li>Revisa la vista previa de los datos procesados</li>
+                    <li>Descarga el archivo Excel generado</li>
+                    <li>El archivo generado estará listo para usar en tus procesos</li>
+                </ol>
+            </div>
         </div>
     </div>
 
@@ -374,6 +471,7 @@
     let processedData = [];
     let originalFileName = '';
     let selectedColumns = ['Tienda', 'Cantidad', 'Producto', 'Sku']; // columnas por defecto
+    let filterText = '';
 
 
     const uploadArea = document.getElementById('uploadArea');
@@ -382,6 +480,7 @@
     const processBtn = document.getElementById('processBtn');
     const alertContainer = document.getElementById('alertContainer');
     const previewContainer = document.getElementById('previewContainer');
+    const downloadButtons = document.getElementById('downloadButtons');
 
     // Drag and drop events
     uploadArea.addEventListener('dragover', (e) => {
@@ -415,13 +514,18 @@
         }
         currentFile = file;
 
-        // 👇 guardamos el nombre sin la extensión
         originalFileName = file.name.replace(/\.[^.]+$/, '');
-
         fileName.textContent = `✓ ${file.name}`;
         processBtn.disabled = false;
         alertContainer.innerHTML = '';
         previewContainer.innerHTML = '';
+
+        filterText = '';
+
+        if (downloadButtons) {
+            downloadButtons.style.display = 'none';
+            downloadButtons.innerHTML = '';
+        }
     }
 
     processBtn.addEventListener('click', processFile);
@@ -433,6 +537,11 @@
         processBtn.innerHTML = '<div class="spinner"></div><span>Procesando...</span>';
         alertContainer.innerHTML = '';
         previewContainer.innerHTML = '';
+
+        if (downloadButtons) {
+            downloadButtons.style.display = 'none';
+            downloadButtons.innerHTML = '';
+        }
 
         try {
             const data = await readExcelFile(currentFile);
@@ -486,7 +595,6 @@
         return value === undefined || value === null || String(value).trim() === "";
     }
 
-    // (lo usaremos más adelante para mejorar detection de modelos)
     function isModelCode(value) {
             const s = String(value || "").trim().toUpperCase();
             // permitir letras, números y guiones
@@ -518,23 +626,21 @@
     }
 
 
-    // ===== Router de formato =====
     function parseOrderData(data) {
         const isNew = detectNewFormat(data);
         if (isNew) {
-            return parseNewFormat(data);   // Liverpool formato nuevo
+            return parseNewFormat(data);
         } else {
-            return parseOldFormat(data);   // Suburbia / formato viejo
+            return parseOldFormat(data);
         }
     }
 
-    // ===== Formato NUEVO (Liverpool) =====
     function parseNewFormat(data) {
     const result = [];
     let currentEan = null;
     let currentProducto = null;
     let inDistribucion = false;
-    let currentMeta = {};  // columnas de cabecera (Ean, Precio, Color, etc.)
+    let currentMeta = {};
 
     for (let i = 0; i < data.length; i++) {
         const row = data[i];
@@ -560,7 +666,7 @@
             if (estilo && isModelCode(estilo)) {
                 currentProducto = String(estilo).trim();
             } else {
-                currentProducto = null; // lo podremos buscar en filas intermedias
+                currentProducto = null;
             }
 
             inDistribucion = false;
@@ -620,7 +726,6 @@
                         Sku: currentMeta['Sku'] || currentMeta['SKU'] || currentEan
                     };
 
-                    // Agregar columnas extra (Ean, Precio, Color, Talla, Descripción, Estilo, etc.)
                     Object.keys(currentMeta).forEach(colName => {
                         if (!(colName in rowObj)) {
                             rowObj[colName] = currentMeta[colName];
@@ -646,7 +751,6 @@
         const nRows = data.length;
         if (!nRows) return result;
 
-        // Detectar fila de encabezados de producto (MODELO, CÓDIGO EAN, SKU, DESCRIPCIÓN, etc.)
         let headerRowIndex = -1;
         const headerNamesByIndex = {};
 
@@ -686,7 +790,6 @@
             const row = (data[i] || []);
             if (!row.length) continue;
 
-            // ¿Hay algún código de modelo en esta fila?
             let foundModel = null;
             for (let c = 0; c < row.length; c++) {
                 const v = String(row[c] || "").trim();
@@ -699,7 +802,6 @@
             if (!foundModel) continue;
             const currentModel = foundModel;
 
-            // Metadatos de producto tomando la fila actual vs encabezados
             let productMeta = {};
             if (headerRowIndex >= 0) {
                 for (let c = 0; c < row.length; c++) {
@@ -817,7 +919,25 @@
             `;
         }
 
-    function showPreview(data) {
+
+        function applyFilter(data) {
+        if (!filterText) return data;
+         const q = filterText.toLowerCase();
+
+        return data.filter(row =>
+            Object.values(row).some(v =>
+             String(v ?? '').toLowerCase().includes(q)
+         )
+        );
+    }   
+
+function showPreview(data) {
+    if (!data || data.length === 0) {
+        previewContainer.innerHTML = '';
+        showDownloadButton();
+        return;
+    }
+
     // Detectar todas las columnas disponibles en processedData
     const colSet = new Set();
     data.forEach(row => {
@@ -828,7 +948,7 @@
     // Mantener selectedColumns solo con columnas existentes
     selectedColumns = (selectedColumns || []).filter(c => allColumns.includes(c));
 
-    // Si se vacía (p.ej. en el futuro agregas otras columnas), tomamos un default
+    // Si se vacía, tomamos un default
     if (selectedColumns.length === 0) {
         const preferred = ['Tienda', 'Cantidad', 'Producto', 'Sku'];
         preferred.forEach(c => {
@@ -839,6 +959,25 @@
             selectedColumns = allColumns.slice();
         }
     }
+
+    // Aplicar filtro de búsqueda
+    const filteredData = applyFilter(data);
+
+    // ===== Resumen rápido =====
+    const tiendas = new Set();
+    const productos = new Set();
+    let totalCantidad = 0;
+
+    filteredData.forEach(row => {
+        if (row.Tienda !== undefined && row.Tienda !== '') {
+            tiendas.add(String(row.Tienda));
+        }
+        if (row.Producto !== undefined && row.Producto !== '') {
+            productos.add(String(row.Producto));
+        }
+        const val = parseFloat(row.Cantidad);
+        if (!isNaN(val)) totalCantidad += val;
+    });
 
     const controlsHtml = `
         <div class="column-controls">
@@ -855,10 +994,24 @@
         </div>
     `;
 
+    const summaryHtml = `
+        <div class="preview-summary">
+            <span><strong>Registros:</strong> ${filteredData.length} / ${data.length}</span>
+            <span><strong>Tiendas:</strong> ${tiendas.size}</span>
+            <span><strong>Productos:</strong> ${productos.size}</span>
+            <span><strong>Total piezas:</strong> ${totalCantidad}</span>
+        </div>
+        <div class="preview-search">
+            <input type="text" id="searchInput"
+                   placeholder="Buscar en la vista previa..."
+                   value="${filterText}">
+        </div>
+    `;
+
     const tableHtml = `
         <div class="preview">
             <div class="preview-header">
-                Vista previa (${data.length} registros)
+                Vista previa (${filteredData.length} registros)
             </div>
             <div class="table-container">
                 <table>
@@ -868,7 +1021,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${data.map(row => `
+                        ${filteredData.map(row => `
                             <tr>
                                 ${selectedColumns.map(col => `<td>${row[col] ?? ''}</td>`).join('')}
                             </tr>
@@ -879,10 +1032,10 @@
         </div>
     `;
 
-    // Pintamos controles + tabla
-    previewContainer.innerHTML = controlsHtml + tableHtml;
+    // Pintamos controles + resumen + tabla
+    previewContainer.innerHTML = controlsHtml + summaryHtml + tableHtml;
 
-    // Añadir listeners a los checkboxes
+    // Listeners de columnas
     const toggles = previewContainer.querySelectorAll('.column-toggle');
     toggles.forEach(input => {
         input.addEventListener('change', (e) => {
@@ -904,34 +1057,51 @@
         });
     });
 
-    // Volvemos a añadir los botones de descarga debajo
+searchInput.addEventListener('input', (e) => {
+    const caretPos = e.target.selectionStart;
+    filterText = e.target.value || '';
+
+    showPreview(processedData);
+
+    // Restaurar foco y posición del cursor
+    const newInput = document.getElementById('searchInput');
+    if (newInput) {
+        newInput.focus();
+        newInput.setSelectionRange(caretPos, caretPos);
+    }
+});
+
+    // Botones de descarga (arriba, donde los pusimos)
     showDownloadButton();
 }
 
 
     function showDownloadButton() {
-        const btnContainer = document.createElement('div');
-        btnContainer.style.display = 'flex';
-        btnContainer.style.flexDirection = 'column';
-        btnContainer.style.gap = '10px';
-        btnContainer.style.marginTop = '10px';
+        if (!downloadButtons) return;
 
-        // Botón Excel (igual que antes)
+        // Si no hay datos, ocultamos el contenedor
+        if (!processedData || processedData.length === 0) {
+            downloadButtons.style.display = 'none';
+            downloadButtons.innerHTML = '';
+            return;
+        }
+
+        // Limpiar y volver a crear los botones
+        downloadButtons.innerHTML = '';
+
         const btnExcel = document.createElement('button');
         btnExcel.className = 'btn btn-success';
-        btnExcel.innerHTML = '<span>⬇️</span><span>Descargar Archivo Excel</span>';
+        btnExcel.innerHTML = '<span>⬇️</span><span>Descargar Excel</span>';
         btnExcel.onclick = downloadExcel;
 
-        // Botón PDF (nuevo)
         const btnPDF = document.createElement('button');
         btnPDF.className = 'btn btn-primary';
-        btnPDF.innerHTML = '<span>🧾</span><span>Descargar como PDF</span>';
+        btnPDF.innerHTML = '<span>🧾</span><span>Descargar PDF</span>';
         btnPDF.onclick = downloadPDF;
 
-        btnContainer.appendChild(btnExcel);
-        btnContainer.appendChild(btnPDF);
-
-        previewContainer.appendChild(btnContainer);
+        downloadButtons.appendChild(btnExcel);
+        downloadButtons.appendChild(btnPDF);
+        downloadButtons.style.display = 'flex';
     }
 
     function downloadExcel() {
@@ -985,8 +1155,6 @@ function downloadPDF() {
 
     doc.save(filename);
 }
-
-
 
 </script>
 </body>
