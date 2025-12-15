@@ -641,12 +641,23 @@
     let currentProducto = null;
     let inDistribucion = false;
     let currentMeta = {};
+    let distribOrder = 'store_first'; // 'store_first' | 'qty_first'
+
+    const isDigits = (v) => /^\d+$/.test(String(v ?? '').trim());
+    const isStoreCode = (v) => {
+        const s = String(v ?? '').trim();
+        return isDigits(s) && s.length >= 1 && s.length <= 5;
+    };
+    const isQty = (v) => {
+        const n = parseInt(String(v ?? '').trim(), 10);
+        return !isNaN(n) && n > 0;
+    };
 
     for (let i = 0; i < data.length; i++) {
         const row = data[i];
         if (!row || row.length === 0) continue;
 
-        // 1) Fila de encabezados "Ean  Precio  Color  Talla  ..."
+        // 1) Encabezados del bloque (Ean, Precio, ...)
         if (String(row[0]).trim() === 'Ean' && i + 1 < data.length) {
             const headerRow = row.map(v => String(v || '').trim());
             const valueRow = (data[i + 1] || []).map(v => v);
@@ -658,10 +669,8 @@
                 currentMeta[colName] = valueRow[c];
             }
 
-            // Ean principal
             currentEan = String(currentMeta['Ean'] || '').trim();
 
-            // Producto: lo intentamos tomar del Estilo
             const estilo = currentMeta['Estilo'] || currentMeta['ESTILO'];
             if (estilo && isModelCode(estilo)) {
                 currentProducto = String(estilo).trim();
@@ -675,8 +684,20 @@
 
         const firstCell = String(row[0] || '').trim();
 
-        // 2) Detectar inicio de sección de distribución
-        if (firstCell.includes('Distribución') || firstCell === 'Tienda') {
+        // 2) Detectar inicio de distribución y capturar el ORDEN a partir del encabezado
+        if (firstCell.includes('Distribución') || firstCell === 'Tienda' || firstCell === 'Cantidad') {
+            const normRow = row.map(v => String(v ?? '').trim().toLowerCase());
+            const idxTienda = normRow.indexOf('tienda');
+            const idxCantidad = normRow.indexOf('cantidad');
+
+            if (idxTienda !== -1 && idxCantidad !== -1) {
+                distribOrder = (idxTienda < idxCantidad) ? 'store_first' : 'qty_first';
+            } else if (firstCell === 'Cantidad') {
+                distribOrder = 'qty_first';
+            } else {
+                distribOrder = 'store_first';
+            }
+
             inDistribucion = true;
             continue;
         }
@@ -692,52 +713,48 @@
             }
         }
 
-        // 4) Procesar filas de distribución
+        // 4) Procesar filas de distribución según el orden detectado
         if (inDistribucion && currentEan && currentProducto) {
-            let j = 0;
-            while (j < row.length - 1) {
-                let cantidad = null;
-                let tienda = null;
+            const filtered = row.filter(v => String(v ?? '').trim() !== '');
 
-                // cantidad
-                if (row[j] !== '' && !isNaN(parseInt(row[j]))) {
-                    cantidad = parseInt(row[j]);
-                    j++;
+            for (let k = 0; k < filtered.length - 1; k += 2) {
+                const a = filtered[k];
+                const b = filtered[k + 1];
+
+                let tiendaVal, cantidadVal;
+
+                if (distribOrder === 'store_first') {
+                    tiendaVal = a;
+                    cantidadVal = b;
                 } else {
-                    j++;
-                    continue;
+                    cantidadVal = a;
+                    tiendaVal = b;
                 }
 
-                // tienda (buscamos un número corto en las siguientes celdas)
-                for (let k = j; k < Math.min(j + 3, row.length); k++) {
-                    const cell = String(row[k]).trim();
-                    if (cell && !isNaN(parseInt(cell)) && cell.length <= 5) {
-                        tienda = cell;
-                        j = k + 1;
-                        break;
+                const tiendaStr = String(parseInt(String(tiendaVal ?? '').trim(), 10));
+                const cantNum = parseInt(String(cantidadVal ?? '').trim(), 10);
+
+                if (!isStoreCode(tiendaStr)) continue;
+                if (isNaN(cantNum) || cantNum <= 0) continue;
+
+                const rowObj = {
+                    Tienda: tiendaStr,
+                    Cantidad: cantNum,
+                    Producto: currentProducto,
+                    Sku: currentMeta['Sku'] || currentMeta['SKU'] || currentEan
+                };
+
+                Object.keys(currentMeta).forEach(colName => {
+                    if (!(colName in rowObj)) {
+                        rowObj[colName] = currentMeta[colName];
                     }
-                }
+                });
 
-                if (cantidad && tienda && cantidad > 0) {
-                    const rowObj = {
-                        Tienda: tienda,
-                        Cantidad: cantidad,
-                        Producto: currentProducto, // 👈 ya no será "Tienda"
-                        Sku: currentMeta['Sku'] || currentMeta['SKU'] || currentEan
-                    };
-
-                    Object.keys(currentMeta).forEach(colName => {
-                        if (!(colName in rowObj)) {
-                            rowObj[colName] = currentMeta[colName];
-                        }
-                    });
-
-                    result.push(rowObj);
-                }
+                result.push(rowObj);
             }
         }
 
-        // 5) Cuando empieza un nuevo bloque de producto
+        // 5) Reset al arrancar otro bloque
         if (firstCell === 'Ean' || firstCell === 'Precio') {
             inDistribucion = false;
         }
@@ -745,6 +762,7 @@
 
     return result;
 }
+
 
     function parseOldFormat(data) {
         const result = [];
